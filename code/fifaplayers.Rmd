@@ -1,0 +1,337 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, warning=FALSE}
+rm(list = ls())
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(ggrepel)
+library(scales)
+library(plotly)
+```
+
+## Store Data
+
+```{r, warning=FALSE}
+setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
+
+df<-read.csv("data\\fifa_players.csv")%>%
+  filter(Source_File=="combined_fifa_players_20241112_163726")
+
+```
+
+## Data Manipulation
+
+```{r}
+
+top_leagues <- c("Serie A (Italy)", "La Liga (Spain)", "Premier League (England)", 
+                 "Série A (Brazil)", "Bundesliga (Germany)", "Liga Profesional de Fútbol (Argentina)", 
+                 "Primeira Liga (Portugal)", "Ligue 1 (France)", "Pro League (Belgium)", 
+                 "Eredivisie (Netherlands)", "Süper Lig (Türkiye)")
+
+df_clean<- df %>%  mutate(
+  Wage  = str_remove_all(Wage, "€"),  
+  Wage  = str_replace(Wage, "K", ""),  
+  Wage = as.numeric(Wage),
+  Value  = str_remove_all(Value, "€"),  
+  Value  = str_replace(Value, "K", ""),  
+  Value = as.numeric(Value),
+  Release.Clause  = str_remove_all(Release.Clause, "€"),  
+  Release.Clause  = str_replace(Release.Clause, "K", ""),  
+  Release.Clause = as.numeric(Release.Clause),
+  Contract.Start = as.numeric(Contract.Start),
+  Contract.End = as.numeric(Contract.End),
+  Contract.Duration=Contract.End-Contract.Start,
+  Height_cm = as.numeric(str_extract(Height, "\\d+")),
+  Weight_kg = as.numeric(str_extract(Weight, "\\d+")),
+  
+  Finishing = as.numeric(str_remove(Finishing, "\\+\\d+")),
+  Overall.Score = as.numeric(str_remove(Overall.Score, "\\+\\d+")),
+  Potential.Score = as.numeric(str_remove(Potential.Score, "\\+\\d+")),
+  
+  Role = case_when(
+    str_detect(Best.Position, "ST|CF|LW|RW") ~ "Attacker",
+    str_detect(Best.Position, "CM|CAM|CDM|LM|RM|LWB|RWB") ~ "Midfielder",
+    str_detect(Best.Position, "CB|LB|RB") ~ "Defender",
+    str_detect(Best.Position, "GK") ~ "Goalkeeper",
+    TRUE ~ "Unknown"  
+  ),
+  Performance_Score= case_when(
+    str_detect(Role,  "Attacker") ~ (5 * as.numeric(Finishing)) +
+      (4 * as.numeric(Dribbling)) +
+      (3 * as.numeric(Shot.Power)) +
+      (2 * as.numeric(Sprint.Speed))+
+      (1 * as.numeric(Attack.Position)),
+    str_detect(Role, "Midfielder") ~ (5 * as.numeric(Short.Passing)) +
+      (3 * as.numeric(Dribbling)) +
+      (4 * as.numeric(Vision)) +
+      (2 * as.numeric(Long.Passing)) +
+      (1 * as.numeric(Stamina)),
+    str_detect(Role, "Defender") ~ (5 * as.numeric(Standing.Tackle)) +
+      (4 * as.numeric(Interceptions)) +
+      (3 * as.numeric(Strength)) +
+      (2 * as.numeric(Defensive.Awareness)) +
+      (1 * as.numeric(Heading.Accuracy)),
+    str_detect(Role, "Goalkeeper") ~ (5 * as.numeric(GK.Reflexes)) +
+      (4 * as.numeric(GK.Diving)) +
+      (3 * as.numeric(GK.Handling)) +
+      (2 * as.numeric(GK.Positioning))+
+      (1 * as.numeric(GK.Positioning)),
+    TRUE ~ as.numeric(Overall.Score)  # Default if no match
+  ),
+  mylabel = paste0(Player, " earns €", Wage, "K,", "\n",
+                   "and has a Score of ", Performance_Score, "."))  %>%
+  filter(Role != "Unknown", !is.na(Wage), !is.na(Performance_Score), !is.na(Contract.Duration), League %in% top_leagues) %>%
+  select(-c(Position, Player.ID, Loan.End, Attacking.Work.Rate, 
+            Defensive.Work.Rate, Source_File, Joined.Team))
+
+
+england<-df_clean%>% filter(League== 	"Premier League (England)")
+```
+
+```{r}
+colnames(df)
+```
+## EDA
+```{r, warning=FALSE}
+
+
+ggplot(df_clean) +
+ aes(x = Overall.Score) +
+ geom_density(fill = "#112446") +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
+ facet_wrap(vars(League), 
+ nrow = 5L)
+
+ggplot(df_clean) +
+ aes(x = Overall.Score, y = Potential.Score) +
+ geom_jitter() +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
+ facet_wrap(vars(League), 
+ nrow = 5L)
+
+ggplot(df_clean) +
+ aes(x = Overall.Score, y = Contract.Duration) +
+ geom_jitter() +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
+ facet_wrap(vars(League), 
+ nrow = 5L)
+
+ggplot(df_clean) +
+ aes(x = League) +
+ geom_bar(fill = "#112446") +
+ coord_flip() +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
+ axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
+ legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
+ size = 16L))
+
+ggplot(df_clean) +
+ aes(x = Age, y = League) +
+ geom_boxplot(fill = "#112446") +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
+ axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
+ legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
+ size = 16L))
+
+ggplot(df_clean) +
+ aes(x = Age, y = Role) +
+ geom_boxplot(fill = "#112446") +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
+ axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
+ legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
+ size = 16L))
+
+ggplot(df_clean) +
+ aes(x = Age, y = League) +
+ geom_boxplot(fill = "#112446") +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
+ axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
+ legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
+ size = 16L)) +
+ facet_wrap(vars(Role), nrow = 1L)
+
+ggplot(df_clean) +
+ aes(x = Age, y = Growth) +
+ geom_jitter() +
+ hrbrthemes::theme_ipsum_ps() +
+ theme(plot.caption = element_text(size = 15L), 
+ axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), axis.text.y = element_text(face = "bold", 
+ size = 14L), axis.text.x = element_text(size = 12L), legend.text = element_text(face = "bold", 
+ size = 14L), legend.title = element_text(face = "bold", size = 16L))
+
+
+
+
+```
+
+```{r}
+ggplot(data=df_clean, aes(x=Wage_K, y=Performance_Score))+
+  geom_point()+
+  facet_wrap(~League)
+
+
+
+ggplot(data=england, aes(x=log(Wage_K), y=Performance_Score, color=Role))+
+  geom_point()
+
+
+lm_model <- lm(log(Wage) ~ Performance_Score, data = df_clean)
+summary(lm_model)
+
+ggplot(data=england, aes(x=Wage_K, y=Performance_Score, color = Performance_Score))+
+  geom_point(alpha = 0.8, size = 3)+
+  geom_smooth(method = "lm", linetype = "dashed", color = "white", se = FALSE)+ 
+  scale_x_continuous(labels = scales::comma, name = "Wage (in K)") +
+  theme_minimal()
+
+
+
+df%>% distinct(League)
+
+# H1: relationship between player wage and their performance
+
+top_players <- england%>% filter(Wage_K>240)
+
+# Create the scatter plot
+p <- ggplot(data = england, aes(x = Wage_K, y = Performance_Score, color = Performance_Score, text = mylabel)) +
+  
+  # Scatter points with gradient color
+  geom_boxplot(alpha = 0.8, size = 4) +
+  
+  # Add regression line (trend)
+  geom_smooth(method = "lm", linetype = "dashed", color = "white", se = FALSE) +
+  
+  # Highlight key players
+  geom_text_repel(data = top_players, aes(label = Player), size = 5, color = "white", force = 2,  # Reduce overlap
+                  nudge_y = 50,  # Move text upwards slightly
+                  direction = "y" ) +
+
+  # Custom color gradient
+  scale_color_gradient(low = "#AABCCB", high = "#E07B39") +
+  
+  # Format X-axis (Wage) with € and K
+  scale_x_continuous(
+    labels = function(x) paste0("€", x, "K"),
+    breaks = seq(0, 500, by = 100),
+    name = "Wage"
+  ) +
+  
+  # Format Y-axis (Performance Score)
+  scale_y_continuous(name = "Performance Score") +
+  
+  # Apply dark theme and enhance visibility
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.background = element_rect(fill = "#012030", color = NA),  # Dark background
+    panel.grid.major = element_line(color = "#1F3A52", size = 0.3),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#012030", color = NA),
+    plot.title = element_text(color = "white", size = 20, face = "bold"),
+    axis.text = element_text(color = "white", size = 12),
+    axis.title = element_text(color = "white", size = 14),
+    legend.position = "none"
+  ) +
+  
+  # Add title and caption
+  labs(title = "Wage Vs Performance in 	Premier League	Englan League", caption = "Data Source: FIFA Stats")
+
+# Convert to interactive plot with tooltips
+
+
+annotations_list <- lapply(1:nrow(top_players), function(i) {
+  list(
+    x = top_players$Wage_K[i],
+    y = top_players$Performance_Score[i],
+    text = paste0(top_players$Player[i]),
+    showarrow = TRUE,
+    arrowhead = 0,
+    ax = 0, ay = -10,
+    font = list(color = "white", size = 12)
+  )
+})
+
+  
+ggplotly(p, tooltip = c("mylabel")) %>%
+  layout(annotations = annotations_list)
+
+
+
+
+
+# H1: Certain positions receive higher wages
+
+# Compute average wage per Role & League
+# Compute average wage per Role & League
+avg_wage <- df_clean %>% 
+  filter(League %in% c("Premier League (England)", "La Liga (Spain)", 
+                       "Bundesliga (Germany)", "Serie A (Italy)", "Ligue 1 (France)")) %>%
+  group_by(League, Role) %>% 
+  summarise(Wage_K = mean(Wage_K, na.rm = TRUE), .groups = "drop") %>%
+  
+  # Sort leagues by highest average wage (descending)
+  arrange(desc(Wage_K)) %>%
+  
+  # Convert League to factor with ordered levels
+  mutate(League = factor(League, levels = unique(League)))  
+
+# Define custom colors for roles
+role_colors <- c("Goalkeeper" = "green", 
+                 "Defender" = "blue", 
+                 "Midfielder" = "purple", 
+                 "Attacker" = "red")
+
+# Create bar chart with sorted leagues & larger facet labels
+p <- ggplot(data = avg_wage, aes(x = Role, y = Wage_K, fill = Role)) +
+  
+  geom_col(alpha = 0.8, width = 0.6) +  # Use geom_col() for single values
+  
+  facet_wrap(~League, scales = "free_y") +  # Allow different y-axis ranges per league
+  
+  scale_fill_manual(values = role_colors, name = "Player Role") +  # Add legend with custom colors
+  
+  # Increase facet label size
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 16, face = "bold", color = "white"),  # Bigger facet labels
+    panel.background = element_rect(fill = "#012030", color = NA),
+    panel.grid.major = element_line(color = "#1F3A52", size = 0.3),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#012030", color = NA),
+    plot.title = element_text(color = "white", size = 20, face = "bold"),
+    axis.text = element_text(color = "white", size = 12),
+    axis.title = element_text(color = "white", size = 14),
+    
+    # Position the legend on the right side
+    legend.position = "right",
+    legend.text = element_text(color = "white", size = 12),
+    legend.title = element_text(color = "white", size = 14, face = "bold")
+  ) +
+  
+  labs(title = "Average Wage by Role Across Leagues", 
+       x = "Player Role", 
+       y = "Wage (€K)",
+       caption = "Data Source: FIFA Stats")
+
+# Convert to interactive plot
+ggplotly(p)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
