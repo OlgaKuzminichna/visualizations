@@ -3,9 +3,9 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, message=FALSE}
 rm(list = ls())
-
+#install.packages("hrbrthemes")
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -13,12 +13,26 @@ library(stringr)
 library(ggrepel)
 library(scales)
 library(plotly)
+library(hrbrthemes)
+
 ```
 
 ## Store Data
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, message=FALSE}
 setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
+
+###Download Fonts
+#must download font awesome locally first! https://fontawesome.com/download
+sysfonts::font_add('fs', 'fonts/otfs/Font Awesome 6 Free-Solid-900.otf')
+sysfonts::font_add('fb', 'fonts/otfs/Font Awesome 6 Brands-Regular-400.otf')
+
+#fonts from Google font Library
+sysfonts::font_add_google("Open Sans","opensans")
+sysfonts::font_add_google("IBM Plex Sans", "ibm_plex_sans")
+font_add_google("IBM Plex Sans", "ibm_plex_sans_bold", bold.wt = 700)
+
+font_sans<-"opensans"
 
 df<-read.csv("data\\fifa_players.csv")%>%
   filter(Source_File=="combined_fifa_players_20241112_163726")
@@ -27,8 +41,7 @@ df<-read.csv("data\\fifa_players.csv")%>%
 
 ## Data Manipulation
 
-```{r}
-
+```{r, warning=FALSE, message=FALSE}
 top_leagues <- c("Serie A (Italy)", "La Liga (Spain)", "Premier League (England)", 
                  "Série A (Brazil)", "Bundesliga (Germany)", "Liga Profesional de Fútbol (Argentina)", 
                  "Primeira Liga (Portugal)", "Ligue 1 (France)", "Pro League (Belgium)", 
@@ -95,16 +108,36 @@ england<-df_clean%>% filter(League== 	"Premier League (England)")
 ```
 
 ```{r}
-colnames(df)
+colnames(df_clean)
+#glimpse(df_clean)
 ```
+
 ## EDA
+
+
+
+```{r}
+library(showtext)     # For custom fonts
+
+ggplot(df_clean) +
+ aes(x = League) +
+ geom_bar(fill = "#112446") +
+ labs(title = "Number of Players per League") +
+ coord_flip() +
+ hrbrthemes::theme_ipsum_ps(base_family = "ibm_plex_sans") +
+ theme(plot.title = element_text(hjust = 0.5,family = "ibm_plex_sans", face = "bold"), axis.title.y = element_text(size = 13L,family = "ibm_plex_sans"), 
+ axis.title.x = element_text(size = 13L,family = "ibm_plex_sans"))
+
+
+```
+
 ```{r, warning=FALSE}
 
 
 ggplot(df_clean) +
  aes(x = Overall.Score) +
  geom_density(fill = "#112446") +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
  facet_wrap(vars(League), 
  nrow = 5L)
@@ -112,7 +145,7 @@ ggplot(df_clean) +
 ggplot(df_clean) +
  aes(x = Overall.Score, y = Potential.Score) +
  geom_jitter() +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
  facet_wrap(vars(League), 
  nrow = 5L)
@@ -120,25 +153,17 @@ ggplot(df_clean) +
 ggplot(df_clean) +
  aes(x = Overall.Score, y = Contract.Duration) +
  geom_jitter() +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
  facet_wrap(vars(League), 
  nrow = 5L)
 
-ggplot(df_clean) +
- aes(x = League) +
- geom_bar(fill = "#112446") +
- coord_flip() +
- hrbrthemes::theme_ipsum_ps() +
- theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
- axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
- legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
- size = 16L))
+
 
 ggplot(df_clean) +
  aes(x = Age, y = League) +
  geom_boxplot(fill = "#112446") +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
  axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
  legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
@@ -147,7 +172,7 @@ ggplot(df_clean) +
 ggplot(df_clean) +
  aes(x = Age, y = Role) +
  geom_boxplot(fill = "#112446") +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
  axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
  legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
@@ -156,7 +181,7 @@ ggplot(df_clean) +
 ggplot(df_clean) +
  aes(x = Age, y = League) +
  geom_boxplot(fill = "#112446") +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
  axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
  legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
@@ -166,7 +191,7 @@ ggplot(df_clean) +
 ggplot(df_clean) +
  aes(x = Age, y = Growth) +
  geom_jitter() +
- hrbrthemes::theme_ipsum_ps() +
+ theme_ipsum_rc()+
  theme(plot.caption = element_text(size = 15L), 
  axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), axis.text.y = element_text(face = "bold", 
  size = 14L), axis.text.x = element_text(size = 12L), legend.text = element_text(face = "bold", 
