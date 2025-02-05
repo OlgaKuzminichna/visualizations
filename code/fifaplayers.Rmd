@@ -108,10 +108,10 @@ median_potential <- df_clean %>%
   pull(median_value)
 
 df_clean<-df_clean %>% mutate( Quadrant = case_when(
-      Overall.Score >= median_overall & Potential.Score >=median_potential ~ "High Overall, High Potential",  # "High Overall, High Potential"
-      Overall.Score >= median_overall & Potential.Score < median_potential ~ "High Overall, Low Potential", # "High Overall, Low Potential"
-      Overall.Score < median_overall & Potential.Score >= median_potential ~ "Low Overall, High Potential", #  "Low Overall, High Potential"
-      Overall.Score < median_overall & Potential.Score < median_potential ~ "Low Overall, Low Potential" # "Low Overall, Low Potential"
+      Overall.Score >= median_overall & Potential.Score >=median_potential ~ "Elite Rising Stars",  # "High Overall, High Potential"
+      Overall.Score >= median_overall & Potential.Score < median_potential ~ "Peak Performance", # "High Overall, Low Potential"
+      Overall.Score < median_overall & Potential.Score >= median_potential ~ "Future Talents", #  "Low Overall, High Potential"
+      Overall.Score < median_overall & Potential.Score < median_potential ~ "Limited Growth" # "Low Overall, Low Potential"
     ))
 
 england<-df_clean%>% filter(League== 	"Premier League (England)")
@@ -187,19 +187,19 @@ p1 + p2 + plot_layout(ncol = 2)+
 
 ### Graph #2.
 
-```{r,  fig.width=20, fig.height=6}
+```{r,  warning=FALSE, fig.width=20, fig.height=6}
 
 ggplot(df_clean) +
    aes(x = Overall.Score, y = Potential.Score, color = Quadrant) +
    
    geom_jitter(alpha = 0.6) +
    scale_color_manual(values = c(
-    "High Overall, High Potential" = "#1b9e77",  
-    "High Overall, Low Potential" = "#d95f02",   
-    "Low Overall, High Potential" = "#7570b3",  
-    "Low Overall, Low Potential" = "#e7298a"   
+    "Elite Rising Stars" = "#1b9e77",  
+    "Peak Performance" = "#d95f02",   
+    "Future Talents" = "#7570b3",  
+    "Limited Growth" = "#e7298a"   
   )) +
-   
+  
    # Horizontal median line for each league
    geom_vline(aes(xintercept = median_overall), color = "gray40", linetype = "dashed", linewidth = 1) +
    
