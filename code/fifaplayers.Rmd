@@ -5,7 +5,7 @@ output: html_notebook
 
 ```{r, warning=FALSE, message=FALSE}
 rm(list = ls())
-#install.packages("hrbrthemes")
+
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -14,7 +14,7 @@ library(ggrepel)
 library(scales)
 library(plotly)
 library(hrbrthemes)
-
+library(showtext)
 ```
 
 ## Store Data
@@ -22,17 +22,6 @@ library(hrbrthemes)
 ```{r, warning=FALSE, message=FALSE}
 setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
 
-###Download Fonts
-#must download font awesome locally first! https://fontawesome.com/download
-sysfonts::font_add('fs', 'fonts/otfs/Font Awesome 6 Free-Solid-900.otf')
-sysfonts::font_add('fb', 'fonts/otfs/Font Awesome 6 Brands-Regular-400.otf')
-
-#fonts from Google font Library
-sysfonts::font_add_google("Open Sans","opensans")
-sysfonts::font_add_google("IBM Plex Sans", "ibm_plex_sans")
-font_add_google("IBM Plex Sans", "ibm_plex_sans_bold", bold.wt = 700)
-
-font_sans<-"opensans"
 
 df<-read.csv("data\\fifa_players.csv")%>%
   filter(Source_File=="combined_fifa_players_20241112_163726")
@@ -42,12 +31,17 @@ df<-read.csv("data\\fifa_players.csv")%>%
 ## Data Manipulation
 
 ```{r, warning=FALSE, message=FALSE}
-top_leagues <- c("Serie A (Italy)", "La Liga (Spain)", "Premier League (England)", 
-                 "Série A (Brazil)", "Bundesliga (Germany)", "Liga Profesional de Fútbol (Argentina)", 
-                 "Primeira Liga (Portugal)", "Ligue 1 (France)", "Pro League (Belgium)", 
-                 "Eredivisie (Netherlands)", "Süper Lig (Türkiye)")
 
-df_clean<- df %>%  mutate(
+league_rankings <- data.frame(
+  League = c( "Süper Lig (Türkiye)", "Liga Profesional de Fútbol (Argentina)",
+             "Eredivisie (Netherlands)", "Série A (Brazil)", "Primeira Liga (Portugal)", "Ligue 1 (France)",
+             "Serie A (Italy)", "Bundesliga (Germany)", "La Liga (Spain)", "Premier League (England)"),
+  League_Rank = 10:1  
+)
+
+
+df_clean<- df %>% 
+  left_join(league_rankings, by = "League") %>% mutate(
   Wage  = str_remove_all(Wage, "€"),  
   Wage  = str_replace(Wage, "K", ""),  
   Wage = as.numeric(Wage),
@@ -74,6 +68,7 @@ df_clean<- df %>%  mutate(
     str_detect(Best.Position, "GK") ~ "Goalkeeper",
     TRUE ~ "Unknown"  
   ),
+  LeagueRanked = paste0("#", League_Rank, " ", League),
   Performance_Score= case_when(
     str_detect(Role,  "Attacker") ~ (5 * as.numeric(Finishing)) +
       (4 * as.numeric(Dribbling)) +
@@ -99,10 +94,25 @@ df_clean<- df %>%  mutate(
   ),
   mylabel = paste0(Player, " earns €", Wage, "K,", "\n",
                    "and has a Score of ", Performance_Score, "."))  %>%
-  filter(Role != "Unknown", !is.na(Wage), !is.na(Performance_Score), !is.na(Contract.Duration), League %in% top_leagues) %>%
+  filter(Role != "Unknown", !is.na(Wage), !is.na(Performance_Score), !is.na(Contract.Duration), League %in% league_rankings$League) %>%
   select(-c(Position, Player.ID, Loan.End, Attacking.Work.Rate, 
             Defensive.Work.Rate, Source_File, Joined.Team))
+  
 
+median_overall <- df_clean %>%
+  summarise(median_value = median(Overall.Score, na.rm = TRUE)) %>%
+  pull(median_value)  # Converts it to a vector
+
+median_potential <- df_clean %>%
+  summarise(median_value = median(Potential.Score, na.rm = TRUE)) %>%
+  pull(median_value)
+
+df_clean<-df_clean %>% mutate( Quadrant = case_when(
+      Overall.Score >= median_overall & Potential.Score >=median_potential ~ "High Overall, High Potential",  # "High Overall, High Potential"
+      Overall.Score >= median_overall & Potential.Score < median_potential ~ "High Overall, Low Potential", # "High Overall, Low Potential"
+      Overall.Score < median_overall & Potential.Score >= median_potential ~ "Low Overall, High Potential", #  "Low Overall, High Potential"
+      Overall.Score < median_overall & Potential.Score < median_potential ~ "Low Overall, Low Potential" # "Low Overall, Low Potential"
+    ))
 
 england<-df_clean%>% filter(League== 	"Premier League (England)")
 ```
@@ -114,92 +124,183 @@ colnames(df_clean)
 
 ## EDA
 
+```{r, warning=FALSE}
+###Download Fonts
+#must download font awesome locally first! https://fontawesome.com/download
+library(hrbrthemes)
+library(showtext)
+showtext.auto()
+setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
+sysfonts::font_add('fs', 'fonts/otfs/Font Awesome 6 Free-Solid-900.otf')
+sysfonts::font_add('fb', 'fonts/otfs/Font Awesome 6 Brands-Regular-400.otf')
+sysfonts::font_add_google("Open Sans","opensans")
+font_sans<-"opensans"
+#sysfonts::font_add_google("IBM Plex Sans", "ibm_plex_sans")
+font_add_google("IBM Plex Sans", "ibm_plex_sans_bold", bold.wt = 700)
 
 
-```{r}
-library(showtext)     # For custom fonts
+theme_ipsum_rc <-theme_ipsum_rc(base_family = "ibm_plex_sans")+
+  theme(
+    text=element_text(size=14, color="#333333"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    plot.title = element_text(size=16, hjust = 0,vjust = 1,family = "fs", face = "bold", color="666666"),
+    axis.text = element_text(size = 14,family = "ibm_plex_sans"),
+    panel.grid.minor=element_blank(),
+    panel.grid.major=element_line(color="gray90"),
+    legend.position="top"
+  )
+theme_set(theme_ipsum_rc)
+```
 
-ggplot(df_clean) +
- aes(x = League) +
- geom_bar(fill = "#112446") +
- labs(title = "Number of Players per League") +
- coord_flip() +
- hrbrthemes::theme_ipsum_ps(base_family = "ibm_plex_sans") +
- theme(plot.title = element_text(hjust = 0.5,family = "ibm_plex_sans", face = "bold"), axis.title.y = element_text(size = 13L,family = "ibm_plex_sans"), 
- axis.title.x = element_text(size = 13L,family = "ibm_plex_sans"))
+### Graph #1.
 
+```{r,  fig.width=20, fig.height=6, warning=False}
+#install.packages("patchwork")
+#install.packages("ggsci")
+library(ggsci)
+library(patchwork)
+# 📊 **Graph 1
+p1 <- ggplot(df_clean) +
+  aes(x = Overall.Score, y = reorder(LeagueRanked, -League_Rank), fill = LeagueRanked) +  # Sort leagues by rank
+  geom_boxplot( color = "666666") +
+ scale_fill_observable()+
+  labs(title = "Score Distribution", x = "Overall Score", y = "League") +
+   theme( legend.position = "none",plot.title = element_text(size = 14))
+  
+  
+
+# 📊 **Graph 2
+p2 <- ggplot(df_clean) +
+  aes(x = Age, y=reorder(LeagueRanked, -League_Rank), fill = LeagueRanked) +  # Sort leagues by rank
+  geom_boxplot( color = "666666") +
+  scale_fill_observable()+
+  labs(title = "Age Distribution", x = "Age", y = NULL) +
+  theme(axis.text.y = element_blank(), legend.position = "none",plot.title = element_text(size = 14))
+
+
+# 🖼 **Combine the graphs horizontally**
+p1 + p2 + plot_layout(ncol = 2)+ 
+  plot_annotation(title = "Overall Score and Age Distribution Across Top Football Leagues")
 
 ```
 
-```{r, warning=FALSE}
+### Graph #2.
 
+```{r,  fig.width=20, fig.height=6}
 
 ggplot(df_clean) +
- aes(x = Overall.Score) +
- geom_density(fill = "#112446") +
- theme_ipsum_rc()+
- theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
- facet_wrap(vars(League), 
- nrow = 5L)
+   aes(x = Overall.Score, y = Potential.Score, color = Quadrant) +
+   
+   geom_jitter(alpha = 0.6) +
+   scale_color_manual(values = c(
+    "High Overall, High Potential" = "#1b9e77",  
+    "High Overall, Low Potential" = "#d95f02",   
+    "Low Overall, High Potential" = "#7570b3",  
+    "Low Overall, Low Potential" = "#e7298a"   
+  )) +
+   
+   # Horizontal median line for each league
+   geom_vline(aes(xintercept = median_overall), color = "gray40", linetype = "dashed", linewidth = 1) +
+   
+   # Vertical median line for each league
+   geom_hline(aes(yintercept = median_potential), color = "gray40", linetype = "dashed", linewidth = 1) +
+   
+   facet_wrap(vars(reorder(LeagueRanked, League_Rank)),  ncol = 5L) +
+   
+   labs(title = "Where Future Superstars Emerge", 
+        x = "Overall Score", 
+        y = "Potential Score") +
+   
+   theme(legend.position = "right",  
+         legend.key.height = unit(1, "cm"), 
+         plot.title = element_text(size = 14))
+```
+
+
+### Graph #3.
+```{r,  fig.width=20, fig.height=6, warning=False}
+
+ggplot(df_clean) +
+  aes(x = Overall.Score, y = Contract.Duration) +
+ geom_jitter(color = "gray60", alpha = 0.5, size = 1.5) +
+geom_smooth(method = "lm", color = "666666", linetype = "solid", se = FALSE) + 
+ facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5L)+
+  labs(title = "Contract Duration Vs Overall Score", x = "Overall Score", y = "Contract Duration") +
+  theme( legend.position = "none",plot.title = element_text(size = 14))
+```
+
+
+
+```{r, warning=FALSE, fig.width=10, fig.height=6}
+
+
 
 ggplot(df_clean) +
  aes(x = Overall.Score, y = Potential.Score) +
  geom_jitter() +
- theme_ipsum_rc()+
- theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
  facet_wrap(vars(League), 
  nrow = 5L)
 
 ggplot(df_clean) +
  aes(x = Overall.Score, y = Contract.Duration) +
  geom_jitter() +
- theme_ipsum_rc()+
- theme(legend.text = element_text(size = 12L), legend.title = element_text(size = 14L)) +
  facet_wrap(vars(League), 
  nrow = 5L)
 
 
 
-ggplot(df_clean) +
- aes(x = Age, y = League) +
- geom_boxplot(fill = "#112446") +
- theme_ipsum_rc()+
- theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
- axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
- legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
- size = 16L))
+
 
 ggplot(df_clean) +
  aes(x = Age, y = Role) +
- geom_boxplot(fill = "#112446") +
- theme_ipsum_rc()+
- theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
- axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
- legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
- size = 16L))
+ geom_boxplot(fill = "#112446") 
 
 ggplot(df_clean) +
  aes(x = Age, y = League) +
- geom_boxplot(fill = "#112446") +
- theme_ipsum_rc()+
- theme(plot.caption = element_text(size = 15L), axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), 
- axis.text.y = element_text(face = "bold", size = 14L), axis.text.x = element_text(size = 12L), 
- legend.text = element_text(face = "bold", size = 14L), legend.title = element_text(face = "bold", 
- size = 16L)) +
+ geom_boxplot(fill = "#112446")+
  facet_wrap(vars(Role), nrow = 1L)
 
-ggplot(df_clean) +
- aes(x = Age, y = Growth) +
- geom_jitter() +
- theme_ipsum_rc()+
- theme(plot.caption = element_text(size = 15L), 
- axis.title.y = element_text(size = 15L), axis.title.x = element_text(size = 15L), axis.text.y = element_text(face = "bold", 
- size = 14L), axis.text.x = element_text(size = 12L), legend.text = element_text(face = "bold", 
- size = 14L), legend.title = element_text(face = "bold", size = 16L))
 
 
 
 
+
+```
+
+```{r}
+
+```
+
+```{r}
+#install.packages("gganimate")
+#install.packages("gifski")
+
+library(ggplot2)
+library(gganimate)
+avg_age<-df_clean%>% group_by(League, Age) %>% summarise(Growth=mean(Growth))
+p <- ggplot(avg_age, aes(x = Age, y = Growth, color = League, group = League)) +
+  geom_line(size = 1.2, alpha = 0.8) +  # Line plot for trends
+  geom_point(size = 2) +  # Points for better visibility
+  scale_color_manual(values = c("#E07B39", "#3498db", "#2ecc71", "#f1c40f", "#9b59b6", 
+                   "#ff5733", "#16a085", "#8e44ad", "#c0392b", "#2c3e50", "#d35400")) +  # Custom colors for Leagues
+  labs(title = "Average Growth by Age Across Leagues",
+       subtitle = "Age: {frame_along}",
+       x = "Age",
+       y = "Growth",
+       color = "League") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(size = 16, hjust = 0.5),
+    axis.title = element_text(size = 14, face = "bold"),
+    legend.position = "right"
+  ) +
+  transition_reveal(Age)  # Animate Age progression
+
+# Save as GIF
+animate(p, duration = 10, fps = 10, width = 800, height = 600, renderer = gifski_renderer("age_growth_league.gif"))
+ 
 ```
 
 ```{r}
