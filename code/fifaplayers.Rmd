@@ -38,63 +38,37 @@ league_rankings <- data.frame(
              "Serie A (Italy)", "Bundesliga (Germany)", "La Liga (Spain)", "Premier League (England)"),
   League_Rank = 10:1  
 )
+numeric_vars <- c("Finishing", "Dribbling", "Shot.Power", "Sprint.Speed", 
+                  "Attack.Position", "Short.Passing", "Vision", "Long.Passing", 
+                  "Stamina", "Standing.Tackle", "Interceptions", "Strength", 
+                  "Defensive.Awareness", "Heading.Accuracy", "GK.Reflexes", 
+                  "GK.Diving", "GK.Handling", "GK.Positioning", "Overall.Score", 
+                  "Potential.Score")
 
 
 df_clean<- df %>% 
-  left_join(league_rankings, by = "League") %>% mutate(
-  Wage  = str_remove_all(Wage, "€"),  
-  Wage  = str_replace(Wage, "K", ""),  
-  Wage = as.numeric(Wage),
-  Value  = str_remove_all(Value, "€"),  
-  Value  = str_replace(Value, "K", ""),  
-  Value = as.numeric(Value),
-  Release.Clause  = str_remove_all(Release.Clause, "€"),  
-  Release.Clause  = str_replace(Release.Clause, "K", ""),  
-  Release.Clause = as.numeric(Release.Clause),
-  Contract.Start = as.numeric(Contract.Start),
-  Contract.End = as.numeric(Contract.End),
-  Contract.Duration=Contract.End-Contract.Start,
-  Height_cm = as.numeric(str_extract(Height, "\\d+")),
-  Weight_kg = as.numeric(str_extract(Weight, "\\d+")),
-  
-  Finishing = as.numeric(str_remove(Finishing, "\\+\\d+")),
-  Overall.Score = as.numeric(str_remove(Overall.Score, "\\+\\d+")),
-  Potential.Score = as.numeric(str_remove(Potential.Score, "\\+\\d+")),
-  
-  Role = case_when(
-    str_detect(Best.Position, "ST|CF|LW|RW") ~ "Attacker",
-    str_detect(Best.Position, "CM|CAM|CDM|LM|RM|LWB|RWB") ~ "Midfielder",
-    str_detect(Best.Position, "CB|LB|RB") ~ "Defender",
-    str_detect(Best.Position, "GK") ~ "Goalkeeper",
-    TRUE ~ "Unknown"  
+  left_join(league_rankings, by = "League") %>% 
+  mutate(
+    Wage = as.numeric(str_replace_all(str_remove_all(Wage, "€"), c("K" = "000", "M" = "000000"))),
+    Value = as.numeric(str_replace_all(str_remove_all(Value, "€"), c("K" = "000", "M" = "000000"))),
+    Release.Clause = as.numeric(str_replace_all(str_remove_all(Release.Clause, "€"), c("K" = "000", "M" = "000000"))),
+    Contract.Start = as.numeric(Contract.Start),
+    Contract.End = as.numeric(Contract.End),
+    Contract.Duration=Contract.End-Contract.Start,
+    Height_cm = as.numeric(str_extract(Height, "\\d+")),
+    Weight_kg = as.numeric(str_extract(Weight, "\\d+")),
+    across(all_of(numeric_vars), 
+                ~ as.numeric(str_remove(., "\\+\\d+"))),
+    Role = case_when(
+      str_detect(Best.Position, "ST|CF|LW|RW") ~ "Attacker",
+      str_detect(Best.Position, "CM|CAM|CDM|LM|RM|LWB|RWB") ~ "Midfielder",
+      str_detect(Best.Position, "CB|LB|RB") ~ "Defender",
+      str_detect(Best.Position, "GK") ~ "Goalkeeper",
+      TRUE ~ "Unknown"  
   ),
-  LeagueRanked = paste0("#", League_Rank, " ", League),
-  Performance_Score= case_when(
-    str_detect(Role,  "Attacker") ~ (5 * as.numeric(Finishing)) +
-      (4 * as.numeric(Dribbling)) +
-      (3 * as.numeric(Shot.Power)) +
-      (2 * as.numeric(Sprint.Speed))+
-      (1 * as.numeric(Attack.Position)),
-    str_detect(Role, "Midfielder") ~ (5 * as.numeric(Short.Passing)) +
-      (3 * as.numeric(Dribbling)) +
-      (4 * as.numeric(Vision)) +
-      (2 * as.numeric(Long.Passing)) +
-      (1 * as.numeric(Stamina)),
-    str_detect(Role, "Defender") ~ (5 * as.numeric(Standing.Tackle)) +
-      (4 * as.numeric(Interceptions)) +
-      (3 * as.numeric(Strength)) +
-      (2 * as.numeric(Defensive.Awareness)) +
-      (1 * as.numeric(Heading.Accuracy)),
-    str_detect(Role, "Goalkeeper") ~ (5 * as.numeric(GK.Reflexes)) +
-      (4 * as.numeric(GK.Diving)) +
-      (3 * as.numeric(GK.Handling)) +
-      (2 * as.numeric(GK.Positioning))+
-      (1 * as.numeric(GK.Positioning)),
-    TRUE ~ as.numeric(Overall.Score)  # Default if no match
-  ),
-  mylabel = paste0(Player, " earns €", Wage, "K,", "\n",
-                   "and has a Score of ", Performance_Score, "."))  %>%
-  filter(Role != "Unknown", !is.na(Wage), !is.na(Performance_Score), !is.na(Contract.Duration), League %in% league_rankings$League) %>%
+  LeagueRanked = paste0("#", League_Rank, " ", League)
+  ) %>%
+  filter(Role != "Unknown", !is.na(Overall.Score), !is.na(Wage),   !is.na(Contract.Duration), League %in% league_rankings$League)%>%
   select(-c(Position, Player.ID, Loan.End, Attacking.Work.Rate, 
             Defensive.Work.Rate, Source_File, Joined.Team))
   
@@ -189,15 +163,16 @@ p1 + p2 + plot_layout(ncol = 2)+
 
 ```{r,  warning=FALSE, fig.width=20, fig.height=6}
 
-ggplot(df_clean) +
+ggplot(df_clean%>% filter(!is.na(Quadrant))) +
+         
    aes(x = Overall.Score, y = Potential.Score, color = Quadrant) +
    
    geom_jitter(alpha = 0.6) +
    scale_color_manual(values = c(
-    "Elite Rising Stars" = "#1b9e77",  
-    "Peak Performance" = "#d95f02",   
-    "Future Talents" = "#7570b3",  
-    "Limited Growth" = "#e7298a"   
+    "Elite Rising Stars" = "#91D1C2B2",  
+    "Peak Performance" = "gray20",   
+    "Future Talents" ="#1b9e77",  
+    "Limited Growth" = "666666"   
   )) +
   
    # Horizontal median line for each league
@@ -208,60 +183,74 @@ ggplot(df_clean) +
    
    facet_wrap(vars(reorder(LeagueRanked, League_Rank)),  ncol = 5L) +
    
-   labs(title = "Where Future Superstars Emerge", 
+   labs(title = "Where Future Talants Emerge", 
         x = "Overall Score", 
         y = "Potential Score") +
    
    theme(legend.position = "right",  
          legend.key.height = unit(1, "cm"), 
-         plot.title = element_text(size = 14))
+         plot.title = element_text(size = 14))+
+   guides(color = guide_legend(override.aes = list(size = 6)))
 ```
 
-
 ### Graph #3.
+
 ```{r,  fig.width=20, fig.height=6, warning=False}
 
 ggplot(df_clean) +
   aes(x = Overall.Score, y = Contract.Duration) +
- geom_jitter(color = "gray60", alpha = 0.5, size = 1.5) +
+ geom_jitter( alpha = 0.5) +
+  scale_fill_observable()+
 geom_smooth(method = "lm", color = "666666", linetype = "solid", se = FALSE) + 
  facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5L)+
   labs(title = "Contract Duration Vs Overall Score", x = "Overall Score", y = "Contract Duration") +
-  theme( legend.position = "none",plot.title = element_text(size = 14))
+  theme( legend.position = "right",plot.title = element_text(size = 14))
 ```
 
 
 
+## Multi-Linear Regression Models
+
 ```{r, warning=FALSE, fig.width=10, fig.height=6}
+# Performance_Score= case_when( 
+# str_detect(Role, "Attacker") \~ (5 \* as.numeric(Finishing)) + 
+# (4 \* as.numeric(Dribbling)) + 
+# (3 \* as.numeric(Shot.Power)) + 
+# (2 \* as.numeric(Sprint.Speed))+ 
+# (1 \* as.numeric(Attack.Position)), 
+# str_detect(Role, "Midfielder") \~ (5 \* as.numeric(Short.Passing)) + 
+# (3 \* as.numeric(Dribbling)) + 
+# (4 \* as.numeric(Vision)) + 
+# (2 \* as.numeric(Long.Passing)) + 
+# (1 \* as.numeric(Stamina)), 
+# str_detect(Role, "Defender") \~ (5 \* as.numeric(Standing.Tackle)) + \
+# (4 \* as.numeric(Interceptions)) + \
+# (3 \* as.numeric(Strength)) + \
+# (2 \* as.numeric(Defensive.Awareness)) + \
+# (1 \* as.numeric(Heading.Accuracy)), \
+# str_detect(Role, "Goalkeeper") \~ (5 \* as.numeric(GK.Reflexes)) + \
+# (4 \* as.numeric(GK.Diving)) + \
+# (3 \* as.numeric(GK.Handling)) + \
+# (2 \* as.numeric(GK.Positioning))+ \
+# (1 \* as.numeric(GK.Positioning)), \
+# TRUE \~ as.numeric(Overall.Score) \
+# Default if no match \# ),
 
+# Example: Predicting Player Value
+# model0 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Age, 
+#             data = df)
+model1 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+            data = df_clean%>% filter(Role=="Attacker"))
+model2 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+            data = df_clean%>% filter(Role=="Midfielder"))
+model3 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+            data = df_clean%>% filter(Role=="Defender"))
 
-
-ggplot(df_clean) +
- aes(x = Overall.Score, y = Potential.Score) +
- geom_jitter() +
- facet_wrap(vars(League), 
- nrow = 5L)
-
-ggplot(df_clean) +
- aes(x = Overall.Score, y = Contract.Duration) +
- geom_jitter() +
- facet_wrap(vars(League), 
- nrow = 5L)
-
-
-
-
-
-ggplot(df_clean) +
- aes(x = Age, y = Role) +
- geom_boxplot(fill = "#112446") 
-
-ggplot(df_clean) +
- aes(x = Age, y = League) +
- geom_boxplot(fill = "#112446")+
- facet_wrap(vars(Role), nrow = 1L)
-
-
+# Summary of Model
+summary(model0)
+summary(model1)
+summary(model2)
+summary(model3)
 
 
 
