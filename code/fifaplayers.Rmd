@@ -46,6 +46,7 @@ theme_ipsum_rc <-theme_ipsum_rc(base_family = "ibm_plex_sans")+
     axis.title.y = element_text(size = 12),
     plot.title = element_text(size=16, hjust = 0,vjust = 1,family = "fs", face = "bold", color="666666"),
     axis.text = element_text(size = 14,family = "ibm_plex_sans"),
+    geom_text =element_text(size = 14,family = "ibm_plex_sans"),
     panel.grid.minor=element_blank(),
     panel.grid.major=element_line(color="gray90"),
     legend.position="top"
@@ -109,12 +110,24 @@ df_clean<- df %>%
     across(all_of(numeric_vars), 
                 ~ as.numeric(str_remove(., "\\+\\d+"))),
     Role = case_when(
+      #Option1
       str_detect(Best.Position, "LW|RW") ~ "Winger",
       str_detect(Best.Position, "ST|CF") ~ "Striker",
       str_detect(Best.Position, "CM|CAM|CDM") ~ "Central Midfielder",
       str_detect(Best.Position, "CB") ~ "Central Defender",
       str_detect(Best.Position, "RWB|LWB|LB|RB") ~ "Side Defender",
       str_detect(Best.Position, "LM|RM") ~ "Side Midfielder",
+      #Option2
+        # str_detect(Best.Position, "ST|CF|LW|RW|CAM") ~ "Offensive Playmaker",
+        # str_detect(Best.Position, "CM|CDM|LM|RM") ~ "Link Player",
+        # str_detect(Best.Position, "CB|LB|RB|RWB|LWB") ~ "Defensive Anchor",
+      #Option3
+        # str_detect(Best.Position, "ST|CF") ~ "High-Value Striker",
+        # str_detect(Best.Position, "LW|RW|CAM") ~ "Creative Forward",
+        # str_detect(Best.Position, "CM|CDM") ~ "Engine Room Midfielder",
+        # str_detect(Best.Position, "CB") ~ "Defensive Leader",
+        # str_detect(Best.Position, "LB|RB|RWB|LWB") ~ "Modern Full-Back",
+
       TRUE ~ "Unknown"  
   ),
   LeagueRanked = paste0("#", League_Rank, " ", League)
@@ -137,7 +150,7 @@ median_potential <- df_clean %>%
   pull(median_value)
 
 
-#Assign performance categories
+#Assign performance categories, calculating the share of each category per League
 df_clean<-df_clean %>% mutate( 'Performance Category' = case_when(
       Overall.Score >= median_overall & Potential.Score >=median_potential ~ "Emerging High Performers",  # "High Overall, High Potential"
       Overall.Score >= median_overall & Potential.Score < median_potential ~ "High Peak Performers", # "High Overall, Low Potential"
@@ -154,29 +167,27 @@ df_clean<-df_clean %>% mutate( 'Performance Category' = case_when(
   group_by(LeagueRanked) %>%
   mutate(
     x_pos = case_when(
-      `Performance Category` == "Emerging High Performers" ~ 90,
-      `Performance Category` == "High Peak Performers" ~ 90,
-      `Performance Category` == "Future High Performers" ~ 50,
-      `Performance Category` == "Limited Performance" ~ 50
+      `Performance Category` %in% c("Emerging High Performers", "High Peak Performers") ~ 90,
+      `Performance Category` %in% c("Future High Performers", "Limited Performance") ~ 50
     ),
     y_pos = case_when(
-      `Performance Category` == "Emerging High Performers" ~ 95,
-      `Performance Category` == "High Peak Performers" ~ 55,
-      `Performance Category` == "Future High Performers" ~ 95,
-      `Performance Category` == "Limited Performance" ~ 55
+      `Performance Category` %in% c("Emerging High Performers", "Future High Performers") ~ 90,
+      `Performance Category` %in% c("High Peak Performers", "Limited Performance") ~ 60
     )
   ) %>%
   
   ungroup()
 
-
+avg_wage_per_league <- df_clean %>%
+  group_by(LeagueRanked,League_Rank) %>%
+  summarise(Average_Wage = mean(Wage, na.rm = TRUE) / 1000) 
 
 head(df_clean)
 ```
 
 ## EDA
 
-### Amount of players across Top Football Leagues
+### Graph 1. Amount of players across Top Football Leagues
 
 Sorted by League Rank
 
@@ -197,7 +208,7 @@ The **Argentine Primera División** has **28 clubs**, which is more than the usu
 
 Even with the same number of clubs, differences in **player registration rules** and **squad management** can cause variations in the total number of players across leagues.
 
-### Overall Score and Age Distribution Across Top Football Leagues
+### Graph 2. Overall Score and Age Distribution Across Top Football Leagues
 
 ```{r,  fig.width=20, fig.height=6, warning=False, echo = FALSE}
 #install.packages("patchwork")
@@ -233,7 +244,23 @@ The **score distribution** reflects the **league rankings**, with top leagues li
 
 The **age distribution** also shows that **top leagues are focused on signing young, talented players**, as they have **younger average ages** compared to other leagues. This suggests that top leagues are always on the lookout for the next generation of football stars to stay competitive.
 
-### Graph #2.
+### Graph 3. Player Performance Distribution Across Top Football Leagues
+
+This graph shows the distribution of football players based on their **Overall Score** (*x-axis*) and **Potential Score** (*y-axis*) across the top 10 football leagues.
+
+Players are categorized into four **performance groups**, defined using the **median Overall Score** and **median Potential Score**, calculated across all players:
+
+-   **🟢 Emerging High Performers (light green):**\
+    Players with **high current performance and high potential**, positioned **above both medians**.
+
+-   **🟢 Future High Performers (dark green):**\
+    Players with **lower current performance but high potential**, falling **below the median for Overall Score** but **above the median for Potential Score**.
+
+-   **⚫ High Peak Performers (gray):**\
+    Players with **high current performance but limited growth potential**, identified as having an **Overall Score above the median** but **Potential Score below the median**.
+
+-   **🔴 Limited Performance (red):**\
+    Players with **low current performance and low potential**, positioned **below both medians**.
 
 ```{r,  warning=FALSE, fig.width=20, fig.height=6, echo = FALSE}
 
@@ -261,13 +288,13 @@ ggplot(df_clean%>% filter(!is.na(`Performance Category`))) +
     geom_text(data = df_clean%>% group_by(LeagueRanked,`Performance Category`)%>%
   distinct(LeagueRanked, `Performance Category`, .keep_all = TRUE) ,
             aes(x = x_pos, y = y_pos, label = paste0(`Percentage`, "%")),
-            inherit.aes = FALSE, size = 4.5, fontface = "bold",hjust = 0.5) +
+            inherit.aes = FALSE, size = 4.5,hjust = 0.5) +
   
    facet_wrap(vars(reorder(LeagueRanked, League_Rank)),  ncol = 5L) +
    
    labs(title = "Where Future Talants Emerge", 
-        x = "Overall Score", 
-        y = "Potential Score") +
+        x = "Overall Score (Mean = 70)", 
+        y = "Potential Score (Mean = 75)") +
    
    theme(legend.position = "right",  
          legend.key.height = unit(1, "cm"), 
@@ -275,20 +302,155 @@ ggplot(df_clean%>% filter(!is.na(`Performance Category`))) +
    guides(color = guide_legend(override.aes = list(size = 8)))
 ```
 
+Top European leagues like the **Premier League (England)**, **La Liga (Spain)**, and **Bundesliga (Germany)** have a **higher percentage of Emerging High Performers**  attract players who are already performing at a high level while still having room for growth.
 
-### Graph #3.
+In contrast, leagues such as the **Süper Lig (Turkey)** and **Liga Profesional de Fútbol (Argentina)** show a **higher concentration of Limited Performance players** (**63%** and **51%**, respectively).
 
-```{r,  fig.width=20, fig.height=6, warning=False}
+Leagues like the **Eredivisie (Netherlands)** and **Primeira Liga (Portugal)** stand out for their **strong representation of Future High Performers** (**29%** and **23%**). These leagues are well-known for **developing young talents** who often move on to larger clubs in top-tier competitions.
+
+Meanwhile, leagues such as **Serie A (Italy)** and **Ligue 1 (France)** display a **more balanced distribution** across all performance categories. This reflects a healthy mix of **Veteran stars**, **Future talents**, and **Squad players**.
+
+### Graph 4. Contract Duration vs Overall Score Across Top Football Leagues
+
+This graph illustrates the relationship between players' Overall Score (x-axis) and their Contract Duration in years (y-axis) across the top 10 football leagues. Each black dot represents an individual player, while the red line indicates the trend line (linear regression), showing the general direction of the relationship.
+
+```{r,  fig.width=20, fig.height=6, warning=False, echo = FALSE}
 
 ggplot(df_clean) +
-  aes(x = Overall.Score, y = Contract.Duration) +
- geom_jitter( alpha = 0.5) +
-  scale_fill_observable()+
-geom_smooth(method = "lm", color = "666666", linetype = "solid", se = FALSE) + 
- facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5L)+
-  labs(title = "Contract Duration Vs Overall Score", x = "Overall Score", y = "Contract Duration") +
-  theme( legend.position = "right",plot.title = element_text(size = 14))
+  aes(x = Overall.Score, y = Contract.Duration, fill = LeagueRanked) +  
+  geom_jitter(alpha = 0.6, shape = 21, size = 2, color="gray60") +    
+  scale_fill_observable() +                                           
+  geom_smooth(method = "lm", color = "gray10", linetype = "solid", se = FALSE) + 
+  facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5L) +
+  labs(
+    title = "Contract Duration vs Overall Score Across Top Football Leagues",
+    x = "Overall Score",
+    y = "Contract Duration"
+  ) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(size = 14)
+  )
 ```
+While there's a general trend of longer contracts for higher-rated players, the strength of this relationship varies by league. Top leagues seem to reward talent with longer commitments, while others may have less flexibility due to financial or structural factors. 
+
+
+### Graph 5. Wage Distribution Across Top Football Leagues
+
+Have you ever been curious about how much football players earn? 
+
+This graph shows the average weekly salary (in thousands of euros) for players in the top 10 football leagues.
+
+```{r,  fig.width=11, fig.height=5, warning=False, echo = FALSE }
+# Plotting average wage as bars
+ggplot(avg_wage_per_league) +
+  aes(x = Average_Wage, y = reorder(LeagueRanked, -League_Rank), fill = LeagueRanked) +
+  geom_col(color = "666666", width = 0.7) +  # Bar plot with custom color
+  scale_fill_observable() +
+  labs(
+    title = "Average Wage Across Top Football Leagues",
+    x = "Average Wage", 
+    y = "League"
+  ) +
+  theme(
+    legend.position = "none",
+   
+  )+
+   geom_text(aes(label = paste0(round(Average_Wage, 1), "K")), 
+            hjust = -0.1, size = 4, color = "black")
+```
+The **Premier League (England)** leads with **€71.6K**, nearly **double** that of the next two highest-paying leagues—**Serie A (Italy)** at **€40.5K** and **La Liga (Spain)** at **€37.8K**. 
+
+Compared to leagues like the **Eredivisie (Netherlands)** (**€8K**) and **Primeira Liga (Portugal)** (**€8.7K**), Premier League players earn almost **9 times more**.
+
+Interestingly, the **Seria A(Brazil)** and **Süper Lig (Turkey)** show relatively **high average wages ** compared to leagues with similar competitive levels. 
+
+
+
+```{r,  fig.width=20, fig.height=5, warning=False, echo = FALSE }
+
+library(dplyr)
+library(ggplot2)
+
+# df_clean %>%
+#  filter(League %in% c("Bundesliga (Germany)", "La Liga (Spain)", "Ligue 1 (France)", "Premier League (England)", 
+# "Serie A (Italy)")) %>%
+#  ggplot() +
+#  aes(x = Role, y = Wage/1000, colour = Role) +
+#  geom_violin(fill = "#112446") +
+#  scale_color_hue(direction = 1) +
+#  hrbrthemes::theme_ipsum_ps() +
+#  ylim(0, 200)
+
+
+avg_wage_per_role <- df_clean %>%
+  group_by(Role) %>%
+  summarise(Average_Wage = mean(Wage, na.rm = TRUE) / 1000) 
+
+
+ggplot(avg_wage_per_role) +
+  aes(x = Average_Wage, y =  reorder(Role,Average_Wage), fill = Role) +
+  geom_col(color = "666666", width = 0.7) +  # Bar plot with custom color
+  scale_fill_observable() +
+  labs(
+    title = "Average Wage Across Top Football Leagues",
+    x = "Average Wage", 
+    y = "League"
+  ) +
+  theme(
+    legend.position = "none",
+   
+  )+
+   geom_text(aes(label = paste0(round(Average_Wage, 1), "K")), 
+            hjust = -0.1, size = 4, color = "black")
+
+
+avg_wage_by_league_role <- df_clean %>%
+  filter(League %in% c("Bundesliga (Germany)", "Serie A (Italy)", "La Liga (Spain)", 
+                        "Ligue 1 (France)", "Premier League (England)")) %>%
+  group_by(LeagueRanked, Role, League_Rank) %>%
+  summarise(Average_Wage = round(mean(Wage, na.rm = TRUE)/1000,0)) %>%
+  group_by(LeagueRanked) %>%
+  mutate(Role_Rank = dense_rank(desc(Average_Wage))) %>%
+  ungroup()%>%
+  mutate(Highlight = case_when(
+    Role == "Winger" ~ "Winger",
+    Role == "Side Midfielder" ~ "Side Midfielder",
+    TRUE ~ "Other"  
+  ))
+
+# Plotting the average wage
+library(tidytext)  # For reorder_within()
+
+# Plot with Roles Ordered Separately for Each League
+ggplot(avg_wage_by_league_role) +
+  aes(x = reorder_within(Role, -Average_Wage, LeagueRanked),  
+      y = Average_Wage, 
+      fill = Highlight) +  
+  geom_col(width = 0.7) +  
+   scale_fill_manual(values = c(
+    "Winger" = "#FF6FB5",          
+    "Side Midfielder" = "#8BD3E6", 
+    "Other" = "gray80"             
+  ))+
+  facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5, scales = "free_x") +  # Allow independent ordering
+  scale_x_reordered() +  # Fix axis labels after reordering
+  labs(
+    title = "Average Wage by Role in Top Football Leagues",
+    x = "Role",
+    y = "Average Wage (€K)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), 
+    strip.text = element_text(size = 12, face = "bold"),
+    axis.text.y = element_text(size = 10),
+    legend.position = "none"
+  )
+```
+
+
 
 ## Multi-Linear Regression Models
 
