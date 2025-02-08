@@ -3,7 +3,18 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-```{r, warning=FALSE, message=FALSE}
+# A Data-Driven Analysis of Football Player Performance and Wage
+
+**Football** is one of the most popular sports in the world, enjoyed by billions of fans and generating huge amounts of money through TV rights, sponsorships, and merchandise. Because of this, football players often earn some of the highest salaries in professional sports. Clubs spend a lot of money on players based on their skills, physical abilities, and overall performance.
+
+This project is divided into two major components:
+
+1.  **EDA** - We will start with exploratory data analysis, and see the connection between player performance and salary to understand what factors influence how much footballers get paid.\
+2.  **Regression model** - Then, we will use regression modeling to see how different performance metrics affect player wages, giving us insights into what really drives player value in football.
+
+By the way, to ensure a consistent and meaningful analysis, we focus exclusively on players from the top 10 football leagues, which represent the highest level of competition globally. Additionally, goalkeepers are excluded from the analysis because their performance metrics differ significantly from those of outfield players, and including them could introduce bias into the results.
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
 rm(list = ls())
 
 library(dplyr)
@@ -15,11 +26,48 @@ library(scales)
 library(plotly)
 library(hrbrthemes)
 library(showtext)
+
+###Download Fonts
+#must download font awesome locally first! https://fontawesome.com/download
+showtext.auto()
+setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
+sysfonts::font_add('fs', 'fonts/otfs/Font Awesome 6 Free-Solid-900.otf')
+sysfonts::font_add('fb', 'fonts/otfs/Font Awesome 6 Brands-Regular-400.otf')
+sysfonts::font_add_google("Open Sans","opensans")
+font_sans<-"opensans"
+#sysfonts::font_add_google("IBM Plex Sans", "ibm_plex_sans")
+font_add_google("IBM Plex Sans", "ibm_plex_sans_bold", bold.wt = 700)
+
+#Setting my theme
+theme_ipsum_rc <-theme_ipsum_rc(base_family = "ibm_plex_sans")+
+  theme(
+    text=element_text(size=14, color="#333333"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    plot.title = element_text(size=16, hjust = 0,vjust = 1,family = "fs", face = "bold", color="666666"),
+    axis.text = element_text(size = 14,family = "ibm_plex_sans"),
+    panel.grid.minor=element_blank(),
+    panel.grid.major=element_line(color="gray90"),
+    legend.position="top"
+  )
+theme_set(theme_ipsum_rc)
 ```
 
-## Store Data
+## Data
 
-```{r, warning=FALSE, message=FALSE}
+The dataset used in this project was sourced from [SoFIFA](https://sofifa.com/players?type=all&col=wg&sort=desc), a platform that provides detailed information on football players from various leagues worldwide. The data reflects player statistics as of **the end of 2024**
+
+The dataset includes the following key information:
+
+-   **Personal Details:** Player name, age, preferred foot, height, and weight.\
+-   **Club & Contract:** League, contract duration, release clauses.\
+-   **Performance Metrics:** Technical skills (e.g., finishing, dribbling), physical attributes (e.g., sprint speed, stamina), and mental attributes (e.g., vision, composure).\
+-   **Market Value:** Estimated player value and salary information.\
+-   **Positional Data:** Best position and player role (attacker, midfielder, defender, goalkeeper).
+
+In this analysis, goalkeepers have been excluded to ensure consistency and accuracy when examining player performance, market value, and salary. This decision was made because goalkeepers have unique performance metrics (such as GK.Reflexes, GK.Diving, GK.Handling, and GK.Positioning) that are not comparable to the metrics used for outfield players, such as Finishing, Dribbling, Passing, and Sprint Speed.
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
 setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
 
 
@@ -28,7 +76,7 @@ df<-read.csv("data\\fifa_players.csv")%>%
 
 ```
 
-## Data Manipulation
+### Data Manipulation
 
 ```{r, warning=FALSE, message=FALSE}
 
@@ -42,8 +90,9 @@ numeric_vars <- c("Finishing", "Dribbling", "Shot.Power", "Sprint.Speed",
                   "Attack.Position", "Short.Passing", "Vision", "Long.Passing", 
                   "Stamina", "Standing.Tackle", "Interceptions", "Strength", 
                   "Defensive.Awareness", "Heading.Accuracy", "GK.Reflexes", 
-                  "GK.Diving", "GK.Handling", "GK.Positioning", "Overall.Score", 
-                  "Potential.Score")
+                  "GK.Diving", "GK.Handling", "GK.Positioning","Overall.Score", 
+                  "Potential.Score", "Composure", "Reactions","International.Reputation", "Aggression",
+                  "Total.Movement", "Total.Power", "Total.Defending", "Total.Mentality", "Total.Stats" )
 
 
 df_clean<- df %>% 
@@ -60,19 +109,25 @@ df_clean<- df %>%
     across(all_of(numeric_vars), 
                 ~ as.numeric(str_remove(., "\\+\\d+"))),
     Role = case_when(
-      str_detect(Best.Position, "ST|CF|LW|RW") ~ "Attacker",
-      str_detect(Best.Position, "CM|CAM|CDM|LM|RM|LWB|RWB") ~ "Midfielder",
-      str_detect(Best.Position, "CB|LB|RB") ~ "Defender",
-      str_detect(Best.Position, "GK") ~ "Goalkeeper",
+      str_detect(Best.Position, "LW|RW") ~ "Winger",
+      str_detect(Best.Position, "ST|CF") ~ "Striker",
+      str_detect(Best.Position, "CM|CAM|CDM") ~ "Central Midfielder",
+      str_detect(Best.Position, "CB") ~ "Central Defender",
+      str_detect(Best.Position, "RWB|LWB|LB|RB") ~ "Side Defender",
+      str_detect(Best.Position, "LM|RM") ~ "Side Midfielder",
       TRUE ~ "Unknown"  
   ),
   LeagueRanked = paste0("#", League_Rank, " ", League)
   ) %>%
-  filter(Role != "Unknown", !is.na(Overall.Score), !is.na(Wage),   !is.na(Contract.Duration), League %in% league_rankings$League)%>%
-  select(-c(Position, Player.ID, Loan.End, Attacking.Work.Rate, 
-            Defensive.Work.Rate, Source_File, Joined.Team))
+  filter(Role != "Unknown", !is.na(Overall.Score), !is.na(Wage),   !is.na(Contract.Duration), League %in% league_rankings$League, Best.Position != "GK")%>%
+    select(
+    -c(Position, Player.ID, Loan.End, Attacking.Work.Rate, Defensive.Work.Rate, 
+       Source_File, Joined.Team, Height, Weight, Real.Face, Body.Type, 
+       Contract.Start, Contract.End, Total.Goalkeeping),
+    -matches("GK.")
+  )
   
-
+#Calculate median overall and potential scores across all players
 median_overall <- df_clean %>%
   summarise(median_value = median(Overall.Score, na.rm = TRUE)) %>%
   pull(median_value)  # Converts it to a vector
@@ -81,55 +136,70 @@ median_potential <- df_clean %>%
   summarise(median_value = median(Potential.Score, na.rm = TRUE)) %>%
   pull(median_value)
 
-df_clean<-df_clean %>% mutate( Quadrant = case_when(
-      Overall.Score >= median_overall & Potential.Score >=median_potential ~ "Elite Rising Stars",  # "High Overall, High Potential"
-      Overall.Score >= median_overall & Potential.Score < median_potential ~ "Peak Performance", # "High Overall, Low Potential"
-      Overall.Score < median_overall & Potential.Score >= median_potential ~ "Future Talents", #  "Low Overall, High Potential"
-      Overall.Score < median_overall & Potential.Score < median_potential ~ "Limited Growth" # "Low Overall, Low Potential"
-    ))
 
-england<-df_clean%>% filter(League== 	"Premier League (England)")
-```
+#Assign performance categories
+df_clean<-df_clean %>% mutate( 'Performance Category' = case_when(
+      Overall.Score >= median_overall & Potential.Score >=median_potential ~ "Emerging High Performers",  # "High Overall, High Potential"
+      Overall.Score >= median_overall & Potential.Score < median_potential ~ "High Peak Performers", # "High Overall, Low Potential"
+      Overall.Score < median_overall & Potential.Score >= median_potential ~ "Future High Performers", #  "Low Overall, High Potential"
+      Overall.Score < median_overall & Potential.Score < median_potential ~ "Limited Performance" # "Low Overall, Low Potential"
+    )) %>%
+  group_by(LeagueRanked) %>%
+  mutate(Total_Count = n()) %>%
+  
+  group_by(LeagueRanked, `Performance Category`) %>%
+  mutate(Count = n()) %>% 
+  
+   mutate(Percentage = round((Count / Total_Count) * 100, 0)) %>%
+  group_by(LeagueRanked) %>%
+  mutate(
+    x_pos = case_when(
+      `Performance Category` == "Emerging High Performers" ~ 90,
+      `Performance Category` == "High Peak Performers" ~ 90,
+      `Performance Category` == "Future High Performers" ~ 50,
+      `Performance Category` == "Limited Performance" ~ 50
+    ),
+    y_pos = case_when(
+      `Performance Category` == "Emerging High Performers" ~ 95,
+      `Performance Category` == "High Peak Performers" ~ 55,
+      `Performance Category` == "Future High Performers" ~ 95,
+      `Performance Category` == "Limited Performance" ~ 55
+    )
+  ) %>%
+  
+  ungroup()
 
-```{r}
-colnames(df_clean)
-#glimpse(df_clean)
+
+
+head(df_clean)
 ```
 
 ## EDA
 
-```{r, warning=FALSE}
-###Download Fonts
-#must download font awesome locally first! https://fontawesome.com/download
-library(hrbrthemes)
-library(showtext)
-showtext.auto()
-setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
-sysfonts::font_add('fs', 'fonts/otfs/Font Awesome 6 Free-Solid-900.otf')
-sysfonts::font_add('fb', 'fonts/otfs/Font Awesome 6 Brands-Regular-400.otf')
-sysfonts::font_add_google("Open Sans","opensans")
-font_sans<-"opensans"
-#sysfonts::font_add_google("IBM Plex Sans", "ibm_plex_sans")
-font_add_google("IBM Plex Sans", "ibm_plex_sans_bold", bold.wt = 700)
+### Amount of players across Top Football Leagues
 
+Sorted by League Rank
 
-theme_ipsum_rc <-theme_ipsum_rc(base_family = "ibm_plex_sans")+
-  theme(
-    text=element_text(size=14, color="#333333"),
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    plot.title = element_text(size=16, hjust = 0,vjust = 1,family = "fs", face = "bold", color="666666"),
-    axis.text = element_text(size = 14,family = "ibm_plex_sans"),
-    panel.grid.minor=element_blank(),
-    panel.grid.major=element_line(color="gray90"),
-    legend.position="top"
-  )
-theme_set(theme_ipsum_rc)
+```{r,  fig.width=10, fig.height=5, warning=False, echo = FALSE}
+ ggplot(df_clean) +
+  aes(x = reorder(LeagueRanked, -League_Rank), fill = LeagueRanked) +  # Sort leagues by rank
+  geom_bar( color = "666666") +
+  coord_flip() +
+  scale_fill_observable()+
+  labs(title = "Amount of Players  Across Top Football Leagues", x = "Count", y = "League") +
+   theme( legend.position = "none",plot.title = element_text(size = 14))
+  
 ```
 
-### Graph #1.
+When looking at the player distribution across the top football leagues, it's clear that most leagues have a similar number of players, usually between **400 and 500**. However, there are noticeable differences, especially in the **Argentine** and **Brazilian** leagues.
 
-```{r,  fig.width=20, fig.height=6, warning=False}
+The **Argentine Primera División** has **28 clubs**, which is more than the usual **20 clubs** found in most top leagues. This larger number of teams naturally leads to a higher total number of registered players. In contrast, the **Campeonato Brasileiro Série A** has **20 clubs**, similar to many major European leagues.
+
+Even with the same number of clubs, differences in **player registration rules** and **squad management** can cause variations in the total number of players across leagues.
+
+### Overall Score and Age Distribution Across Top Football Leagues
+
+```{r,  fig.width=20, fig.height=6, warning=False, echo = FALSE}
 #install.packages("patchwork")
 #install.packages("ggsci")
 library(ggsci)
@@ -159,28 +229,40 @@ p1 + p2 + plot_layout(ncol = 2)+
 
 ```
 
+The **score distribution** reflects the **league rankings**, with top leagues like the **Premier League**, **La Liga**, and **Bundesliga** having players with **higher average scores**, showing that the best talent is often found in these leagues. On the other hand, lower-ranked leagues have a **wider range of scores**, meaning there's more variety in player performance.
+
+The **age distribution** also shows that **top leagues are focused on signing young, talented players**, as they have **younger average ages** compared to other leagues. This suggests that top leagues are always on the lookout for the next generation of football stars to stay competitive.
+
 ### Graph #2.
 
-```{r,  warning=FALSE, fig.width=20, fig.height=6}
+```{r,  warning=FALSE, fig.width=20, fig.height=6, echo = FALSE}
 
-ggplot(df_clean%>% filter(!is.na(Quadrant))) +
+
+
+ggplot(df_clean%>% filter(!is.na(`Performance Category`))) +
          
-   aes(x = Overall.Score, y = Potential.Score, color = Quadrant) +
+   aes(x = Overall.Score, y = Potential.Score, color = `Performance Category`) +
    
    geom_jitter(alpha = 0.6) +
    scale_color_manual(values = c(
-    "Elite Rising Stars" = "#91D1C2B2",  
-    "Peak Performance" = "gray20",   
-    "Future Talents" ="#1b9e77",  
-    "Limited Growth" = "666666"   
+    "Emerging High Performers" = "#91D1C2B2",  
+   "High Peak Performers" = "gray20",   
+    "Future High Performers" ="#1b9e77",  
+    "Limited Performance" = "666666"   
   )) +
   
+
    # Horizontal median line for each league
    geom_vline(aes(xintercept = median_overall), color = "gray40", linetype = "dashed", linewidth = 1) +
    
    # Vertical median line for each league
    geom_hline(aes(yintercept = median_potential), color = "gray40", linetype = "dashed", linewidth = 1) +
-   
+  
+    geom_text(data = df_clean%>% group_by(LeagueRanked,`Performance Category`)%>%
+  distinct(LeagueRanked, `Performance Category`, .keep_all = TRUE) ,
+            aes(x = x_pos, y = y_pos, label = paste0(`Percentage`, "%")),
+            inherit.aes = FALSE, size = 4.5, fontface = "bold",hjust = 0.5) +
+  
    facet_wrap(vars(reorder(LeagueRanked, League_Rank)),  ncol = 5L) +
    
    labs(title = "Where Future Talants Emerge", 
@@ -190,8 +272,9 @@ ggplot(df_clean%>% filter(!is.na(Quadrant))) +
    theme(legend.position = "right",  
          legend.key.height = unit(1, "cm"), 
          plot.title = element_text(size = 14))+
-   guides(color = guide_legend(override.aes = list(size = 6)))
+   guides(color = guide_legend(override.aes = list(size = 8)))
 ```
+
 
 ### Graph #3.
 
@@ -206,8 +289,6 @@ geom_smooth(method = "lm", color = "666666", linetype = "solid", se = FALSE) +
   labs(title = "Contract Duration Vs Overall Score", x = "Overall Score", y = "Contract Duration") +
   theme( legend.position = "right",plot.title = element_text(size = 14))
 ```
-
-
 
 ## Multi-Linear Regression Models
 
@@ -237,27 +318,231 @@ geom_smooth(method = "lm", color = "666666", linetype = "solid", se = FALSE) +
 # Default if no match \# ),
 
 # Example: Predicting Player Value
-# model0 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Age, 
-#             data = df)
-model1 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+model0 <- lm( Wage/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position, 
             data = df_clean%>% filter(Role=="Attacker"))
-model2 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
-            data = df_clean%>% filter(Role=="Midfielder"))
-model3 <- lm(Value/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
-            data = df_clean%>% filter(Role=="Defender"))
+model1 <- lm(Wage/1000 ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+            data = df_clean%>% filter(Role=="Attacker"))
+
+model_improved <- lm(Wage/1000 ~Total.Movement+ Total.Power+ Total.Defending+Total.Mentality+Total.Stats ,   data = df_clean)
+                     
+# model2 <- lm(Overall.Score ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+#             data = df_clean%>% filter(Role=="Midfielder"))
+# model3 <- lm(Overall.Score ~ Finishing+ Dribbling+ Shot.Power+ Sprint.Speed+Attack.Position+ Short.Passing+Vision+Long.Passing+Stamina+Standing.Tackle+Interceptions+Strength+Defensive.Awareness+Heading.Accuracy+Age, 
+#             data = df_clean%>% filter(Role=="Defender"))
 
 # Summary of Model
 summary(model0)
 summary(model1)
-summary(model2)
-summary(model3)
+summary(model_improved)
 
 
+
+# 5 assumptions
+#1. linear
+#2. independent error -> Durban watson test
+#3. Homoscedasticity -> Residual plot
+#4. Normally distribution -> QQ plot
+#5. Multicollinearity VIF, Tolerance
+
+```
+
+```{r}
+library(car)
+#Check for Multicollinearity
+vif(model0)
+# Residual Diagnostics
+par(mfrow = c(2, 2))
+plot(model0)
+
+cor(df_clean %>% select(Finishing, Dribbling, Shot.Power, Sprint.Speed, Attack.Position), use = "complete.obs")
+
+cor(df_clean %>% select(Total.Movement,Total.Power, Total.Defending,Total.Mentality,Total.Stats), use = "complete.obs")
 
 
 ```
 
 ```{r}
+cor(df_clean %>% select(Finishing, Dribbling, Shot.Power, Sprint.Speed, Attack.Position), use = "complete.obs")
+```
+
+```{r}
+library(robustbase)
+model_robust <- lmrob(Overall.Score ~ Finishing + Dribbling + Shot.Power + Sprint.Speed + Attack.Position, 
+                      data = df_clean %>% filter(Role == "Attacker"))
+summary(model_robust)
+```
+
+```{r}
+
+# when we use this?
+model_poly <- lm(Overall.Score ~ Finishing + I(Finishing^2) + Dribbling + I(Dribbling^2) +
+                   Shot.Power + Sprint.Speed + Attack.Position,
+                 data = df_clean %>% filter(Role == "Attacker"))
+summary(model_poly)
+```
+
+```{r}
+model_extended <- lm(Overall.Score ~ Finishing + Dribbling + Shot.Power + Sprint.Speed +
+                       Attack.Position + Stamina + Composure + Reactions,
+                     data = df_clean %>% filter(Role == "Attacker"))
+summary(model_extended)
+```
+
+```{r, warning=FALSE}
+
+
+#library(esquisse)
+#esquisser(df_clean)
+library(dplyr)
+library(ggplot2)
+
+df_clean %>%
+ filter(Role %in% "Attacker") %>%
+ ggplot() +
+ aes(x = Finishing, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ hrbrthemes::theme_ipsum_ps()
+
+df_clean %>%
+ filter(Role %in% "Attacker") %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Finishing, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "the ability to place the ball precisely") +
+ hrbrthemes::theme_ipsum_ps()
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Finishing, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "the ability to place the ball precisely") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Dribbling, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in controlling the ball while moving") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Dribbling, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in controlling the ball while moving") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Dribbling, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in controlling the ball while moving") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Dribbling, y = Overall.Score, colour = `Performance Category`) +
+ geom_jitter() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in controlling the ball while moving") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Shot.Power, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in controlling the ball while moving") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Shot.Power, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Strength behind a player's shot") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Attack.Position, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = " Intelligence in getting into goal-scoring areas") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Short.Passing, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in precise passing over short distances") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Vision, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in identifying gaps for key passes") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Long.Passing, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = " Accuracy in passing over long distances") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Stamina, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Physical capacity to perform consistently over time") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
+
+df_clean %>%
+ filter(!is.na(`Performance Category`)) %>%
+ ggplot() +
+ aes(x = Standing.Tackle, y = Overall.Score, colour = `Performance Category`) +
+ geom_point() +
+ scale_color_hue(direction = 1) +
+ labs(caption = "Skill in cleanly taking the ball without sliding") +
+ hrbrthemes::theme_ipsum_ps() +
+ facet_wrap(vars(Role))
 
 ```
 
