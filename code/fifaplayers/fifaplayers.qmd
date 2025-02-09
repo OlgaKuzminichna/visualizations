@@ -265,7 +265,7 @@ Players are categorized into four **performance groups**, defined using the **me
 -   **🔴 Low Overall, Low Potential (red):**\
     Players with **low current performance and low potential**, positioned **below both medians**.
 
-```{r, warning=FALSE, fig.width=15, fig.height=7, message=FALSE}
+```{r, warning=FALSE, fig.width=16, fig.height=7, message=FALSE}
 #| echo: true
 #| code-fold: true
 #| code-summary: "expand for full code"
@@ -274,7 +274,7 @@ ggplot(df_clean %>% filter(!is.na(`Performance Category`))) + aes(x = Overall.Sc
    geom_vline(aes(xintercept = median_overall), color = "gray40", linetype = "dashed", linewidth = 1) +
    
    # Vertical median line for each league
-   geom_hline(aes(yintercept = median_potential), color = "gray40", linetype = "dashed", linewidth = 1) + geom_text(data = df_clean%>% group_by(LeagueRanked,`Performance Category`)%>% distinct(LeagueRanked, `Performance Category`, .keep_all = TRUE) , aes(x = x_pos, y = y_pos, label = paste0(Percentage, "%")), inherit.aes = FALSE, size = 4.5,hjust = 0.5) + facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 4) + labs(title = "Where Future Talants Emerge", x = "Overall Score (Mean = 70)", y = "Potential Score (Mean = 75)") + theme(legend.position = "right",legend.key.height = unit(1, "cm"), plot.title = element_text(size = 14))+ guides(color = guide_legend(override.aes = list(size = 10)))
+   geom_hline(aes(yintercept = median_potential), color = "gray40", linetype = "dashed", linewidth = 1) + geom_text(data = df_clean%>% group_by(LeagueRanked,`Performance Category`)%>% distinct(LeagueRanked, `Performance Category`, .keep_all = TRUE) , aes(x = x_pos, y = y_pos, label = paste0(Percentage, "%")), inherit.aes = FALSE, size = 4.5,hjust = 0.5) + facet_wrap(vars(reorder(LeagueRanked, League_Rank)), ncol = 5) + labs(title = "Where Future Talants Emerge", x = "Overall Score (Mean = 70)", y = "Potential Score (Mean = 75)") + theme(legend.position = "bottom",legend.key.height = unit(1, "cm"), plot.title = element_text(size = 14))+ guides(color = guide_legend(override.aes = list(size = 2)))
 
 
 
@@ -353,7 +353,7 @@ Interestingly, the **Seria A(Brazil)** and **Süper Lig (Turkey)** show relative
 
 ### Graph 6. Wage Distribution by Role
 
-```{r,  fig.width=14, fig.height=7, warning=FALSE, message=FALSE }
+```{r,  fig.width=10, fig.height=6, warning=FALSE, message=FALSE }
 #| echo: true
 #| code-fold: true
 #| code-summary: "expand for full code"
@@ -619,11 +619,11 @@ The EDA revealed key insights into player distribution, performance, and wage pa
 
 The **OLS regression results** across the top 5 European leagues highlight key factors influencing player wages, with coefficients representing the weekly wage change (in €K) for a **one-unit increase** in each variable.
 
-### \*\*Common Determinants\*\*
+### **Common Determinants**
 
 Across all leagues, **international reputation** consistently predicts higher wages, with increases ranging from **€1.7K** (Ligue 1) to **€28.15K** (Premier League) per unit. **Age** also impacts wages, notably in the **Premier League** (**€1.29K** per year) and **Bundesliga** (**€0.5K**), reflecting the premium on experience.
 
-### \*\*League-Specific Patterns\*\*
+### **League-Specific Patterns**
 
 -   **Premier League:** Wages are strongly influenced by **international reputation** (**€28.15K**), along with contributions from **reactions** (**€1.37K**), **potential score** (**€2.47K**), and **age** (**€1.29K**).
 
