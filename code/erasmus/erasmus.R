@@ -50,6 +50,7 @@ df<-df%>%
   filter(sending_country_name %in% top_countries)%>%
   filter(receiving_country_name %in% top_countries)%>%
   group_by(sending_country_name,receiving_country_name)%>%
+  filter(receiving_country_name != sending_country_name)%>%
   summarise(amount=sum(`Actual Participants (Contracted Projects)`))%>%
   arrange(desc(amount))
   
