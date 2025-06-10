@@ -28,6 +28,7 @@ df <- df %>%
     remove = TRUE
   )
 
+# Get top 10 sending countries
 top_10_sending<-df%>%
   filter(sending_country_code!=receiving_country_code)%>%
   group_by(sending_country_name)%>%
