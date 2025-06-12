@@ -8,15 +8,11 @@ library(tidyr)
 library(ggplot2)
 library(readxl)
 library(tibble)
-install.packages("circlize")  
-
 library(circlize)
-
-install.packages("ggplotify")   
 library(ggplotify)
-install.packages("cowplot")
-
 library(cowplot)
+library(gridGraphics)
+
 ## Import data
 setwd("C:\\Users\\Olga\\0. VS Code\\Github\\visualizations\\")
 df <- read_excel("data\\Erasmus-KA2-Mobility-Data.xlsx", sheet = "E+ KA2 Data (Since 2014)")
@@ -45,7 +41,7 @@ top_10_sending<-df%>%
   summarise(amount=sum(`Actual Participants (Contracted Projects)`))%>%
   arrange(desc(amount))%>%
   head(10)
-
+# Get top 10 receiving countries
 top_10_receiving<-df%>%
   filter(sending_country_code!=receiving_country_code)%>%
   group_by(receiving_country_name)%>%
@@ -61,7 +57,7 @@ df_short<-df%>%
          receiving_country_name %in% top_countries,
          sending_country_name != receiving_country_name) %>%
   group_by(sending_country_name,receiving_country_name)%>%
-  summarise(amount = sum(`Actual Participants (Contracted Projects)`), .groups="drop") %>%
+  summarise(amount = sum(`Actual Participants (Contracted Projects)`)/1000, .groups="drop") %>%
   arrange(desc(amount))
 
 df_mat <- df %>%
@@ -77,24 +73,44 @@ df_mat <- df %>%
   as.matrix()
 
 pal <- c(
-  "#002765","#0061fd","#1cc6ff","#00b661","#5bf34d",
-  "#ffdd00","#ff7d00","#da2818","#ff006d","#8f00ff"
+  "#1f77b4",  # muted blue
+  "#ff7f0e",  # safety orange
+  "#2ca02c",  # cooked asparagus green
+  "#d62728",  # brick red
+  "#9467bd",  # muted purple
+  "#8c564b",  # chestnut brown
+  "#e377c2",  # raspberry yogurt pink
+  "#7f7f7f",  # mid gray
+  "#bcbd22",  # curry yellow-green
+  "#17becf"   # blue-teal
 )
 
-chordDiagram(df_short, grid.col = pal)
-
-p<-recordPlot()
-as.ggplot(ggdraw(p))+
-  labs(title="ERASMUS STUDENT MOBILITY",
-       subtitle="Movement of Erasmus participants among the leading countries (2014–2023)",
+ chordDiagram(df_short, grid.col = pal)
+ p<-recordPlot()
+ p<-as.ggplot(ggdraw(p))+
+  labs(title="Erasmus Mobility: Who Goes Where",
+       subtitle="Movement of Erasmus participants(in thousands) among the leading countries (2014–2023)",
        caption="Data from erasmus-plus | Created by Litvinova Olga")+
-  theme(text=element_text(family="Arial"),
-        plot.title=element_text(hjust=0.5, face="bold", size=20),
-        plot.subtitle=element_text(hjust=0.5, size=12, margin=margin(t=10)),
-        plot.caption=element_text(size=10, hjust=0.95, margin=margin(b=12)),
-        plot.margin   =margin(t=20))
+   theme(
+     plot.title       = element_text(
+       hjust = 0.5,
+       face  = "bold",
+       size  = 20,
+       color = "#E2657A"
+     ),
+     plot.subtitle    = element_text(
+       hjust = 0.5,
+       size  = 12,
+       margin = margin(t = 10)
+     ),
+     plot.caption     = element_text(
+       size = 10,
+       hjust = 0.95,
+       margin = margin(b = 12)
+     ),
+     plot.margin      = margin(20, 20, 20, 20)
+   )
 
-p
+print(p)
 
-
-
+ggsave("erasmus.jpeg", height=9, width=9)
